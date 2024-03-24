@@ -13,7 +13,7 @@ import streamlit as st
 import time
 import IPython
 import argparse
-import os
+import pandas as pd
 import platform
 import shutil
 import time
@@ -39,6 +39,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
+
 # count_car, count_bus, count_truck = 0, 0, 0
 data_car = []
 data_bus = []
@@ -46,6 +47,9 @@ data_truck = []
 data_motor = []
 already = []
 line_pos = 0.6
+captured_vehicle = []
+captured_time = []
+captured_idx = []
 
 def detect(opt, stframe, car, bus, truck, motor, line, fps_rate, class_id):
     out, source, yolo_model, deep_sort_model, show_vid, save_vid, save_txt, imgsz, evaluate, half, project, name, exist_ok= \
@@ -189,7 +193,7 @@ def detect(opt, stframe, car, bus, truck, motor, line, fps_rate, class_id):
                         label = f'{id} {names[c]} {conf:.2f}'
                         annotator.box_label(bboxes, label, color=colors(c, True))
                         # count_obj(bboxes,w,h,id, names[c], data_car, data_bus, data_truck, data_motor)
-                        count_obj(bboxes,w,h,id, names[c], line_pos)
+                        count_obj(bboxes,w,h,id, names[c], line_pos, frame_idx)
                         
                         if save_txt:
                             # to MOT format
@@ -264,6 +268,7 @@ def detect(opt, stframe, car, bus, truck, motor, line, fps_rate, class_id):
                 truck.write(f"<h3> {str(len(data_truck))} </h3>", unsafe_allow_html=True)
                 motor.write(f"<h3> {str(len(data_motor))} </h3>", unsafe_allow_html=True)
                 fps_rate.markdown(f"<h3> {fps_} </h3>", unsafe_allow_html=True)
+
     # Print results
     t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
     print("Average FPS", round(1 / (sum(list(t)) / 1000), 1))
@@ -273,10 +278,21 @@ def detect(opt, stframe, car, bus, truck, motor, line, fps_rate, class_id):
         print('Results saved to %s' % save_path)
         if platform == 'darwin':  # MacOS
             os.system('open ' + save_path)
+
+    df = pd.DataFrame({'Vehicle Type': captured_vehicle, 'Time Stamps': captured_time, 'Idx': captured_idx})
+
+    st.write(df)
+    print(save_path)
+    try:
+        file_name = f"temp/{p.name}.csv"
+        df.to_csv(file_name, index=False)
+
+    except:
+        print(save_path)
     
             
 
-def count_obj(box, w, h, id, label, line_pos):
+def count_obj(box, w, h, id, label, line_pos, frame_idx):
     global data_car, data_bus, data_truck, data_motor, already
     center_coordinates = (int(box[0]+(box[2]-box[0])/2) , int(box[1]+(box[3]-box[1])/2))
     # classify one time per id
@@ -285,12 +301,24 @@ def count_obj(box, w, h, id, label, line_pos):
             already.append(id)
             if label == 'car' and id not in data_car:
                 data_car.append(id)
+                captured_vehicle.append(f"{label}")
+                captured_time.append(frame_idx)
+                captured_idx.append(id)
             elif label == 'bus' and id not in data_bus:
                 data_bus.append(id)
+                captured_vehicle.append(f"{label}")
+                captured_time.append(frame_idx)
+                captured_idx.append(id)
             elif label == 'truck' and id not in data_truck:
                 data_truck.append(id)
+                captured_vehicle.append(f"{label}")
+                captured_time.append(frame_idx)
+                captured_idx.append(id)
             elif label == 'motorcycle' and id not in data_motor:
                 data_motor.append(id)
+                captured_vehicle.append(f"{label}")
+                captured_time.append(frame_idx)
+                captured_idx.append(id)
 
 # reset id in data
 def reset():
@@ -300,6 +328,9 @@ def reset():
     data_truck = []
     data_motor = []
     already = []
+    captured_vehicle = []
+    captured_time = []
+    captured_idx = []
 
 def parse_opt():
     parser = argparse.ArgumentParser()

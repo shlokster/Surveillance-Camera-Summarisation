@@ -3,6 +3,7 @@ import subprocess
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
 from datetime import datetime, timedelta
 
 
@@ -10,11 +11,11 @@ def check_vehicle_status(data, plate_number):
     entries = data[data['License Plate Number'] == plate_number]
 
     if len(entries) % 2 == 1:
-        print(f"Vehicle {plate_number} hasn't left the area.")
+        return f"Vehicle {plate_number} hasn't left the area."
 
 # Function to calculate the number of vehicles that entered during a time period
 def calculate_entries_in_time_period(data, start_time, end_time):
-    entries_in_period = data[(data['Time Stamps'] >= start_time) & (data['Time Stamps'] <= end_time) & (data['Slno'] % 2 == 1)]
+    entries_in_period = data[(data['Time Stamps'] >= start_time) & (data['Time Stamps'] <= end_time)]
     num_entries = len(entries_in_period['License Plate Number'].unique())
     return num_entries
 
@@ -23,22 +24,23 @@ def get_vehicle_details(data, plate_number):
     details = data[data['License Plate Number'] == plate_number]
     return details
 
-# def movement_rate(data):
-#   data['Hour'] = data['Time Stamps'].dt.hour
 
-#   # Group by hour and count the number of vehicle entries
-#   hourly_movement = data.groupby('Hour').size()
+def movement_rate(data):
+    # Convert the timestamps to datetime objects
+    hourly_movement = data.groupby('Time Stamps').size()
 
-#   # Plot the data
-#   plt.figure(figsize=(10, 6))
-#   hourly_movement.plot(kind='bar', color='skyblue')
-#   plt.title('Vehicle Movement Rate per Hour')
-#   plt.xlabel('Hour')
-#   plt.ylabel('Number of Vehicle Entries')
-#   plt.xticks(rotation=0)
-#   plt.grid(axis='y', linestyle='--', alpha=0.7)
+    # Plot the data
+    plt.figure(figsize=(10, 6))
+    hourly_movement.plot(kind='bar', color='skyblue')
+    plt.title('Vehicle Movement Rate')
+    plt.xlabel('Frame')
+    plt.ylabel('Number of Vehicle Entries')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
 
-#   plt.show()
+    plt.savefig('plot.png', format='png')
+    array = plt.imread('plot.png')
+    # st.write("In func")
+    return array
 
 def avg_time_spent(data):
   # Group the dataset by license plate number
@@ -59,27 +61,67 @@ def avg_time_spent(data):
   # Calculate the average time spent in entry
   average_time_spent = sum(time_spent_in_entry) / len(time_spent_in_entry)
 
-  print(f"Average time spent in entry: {average_time_spent//3600:.1f} hour(s)")
+  return average_time_spent
 
+def get_frame(data, video_path, plate_number):
+
+    st.write("In func")
+    frame = data[data['License Plate Number'] == plate_number]
+    frame_number = frame['Time Stamps'][0]
+
+    # st.write(video_path)
+    try:
+        cap = cv2.VideoCapture(video_path)
+    except:
+        st.write("File")
+
+    # Set the frame number to extract
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+
+    # Read the frame
+    ret, frame = cap.read()
+
+    # Check if the frame is read successfully
+    if ret:
+        # Release the video capture object
+        cap.release()
+        frame = np.array(frame)
+        return frame
+    else:
+        print(f"Error: Unable to extract frame {frame_number}.")
+
+    # Release the video capture object
+    cap.release()   
+    
 
 def main():
     # st.sidebar.title("Navigation")
     # option = st.sidebar.selectbox("Select App", ["Select App", "License Plate Detection", "Pothole Detection", "Vehicle Detection", "View Database"])
 
     csv_path = st.text_input("Enter the path of the Dataframe file:")
-
+    video_path = csv_path.split('.csv')[0]
     if csv_path:
         try:
             # Read the CSV file into a DataFrame
             df = pd.read_csv(csv_path)
 
             # Display the DataFrame using Streamlit DataFrame component
-            st.write("### DataFrame:", csv_path)
+            # st.write("### DataFrame:", csv_path)
             st.dataframe(df)
         except Exception as e:
-            st.error(f"Error: {e}")
+            pass
 
-    
+    plate_number = st.text_input("Enter the numberplate for details:")
+
+    if plate_number:
+        try:
+            st.write(check_vehicle_status(df, plate_number))
+            st.dataframe(get_vehicle_details(df, plate_number))
+            st.write(f"Number of vehicles between the time period of {10} - {180}: {calculate_entries_in_time_period(df, 10, 180)}")
+            st.image(movement_rate(df))
+            st.image(get_frame(df, video_path, plate_number))
+        except Exception as e:
+            pass
 
 
     # if option == "License Plate Detection":
